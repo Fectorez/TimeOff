@@ -67,11 +67,10 @@ module Logic =
         else (Seq.head otherRequests) |> overlapsWith request
             || overlapsWithAnyRequest (Seq.tail otherRequests) request
 
-    let createRequest activeUserRequests  request =
+    let createRequest activeUserRequests  request (today: DateTime) =
         if request |> overlapsWithAnyRequest activeUserRequests then
             Error "Overlapping request"
-        // This DateTime.Today must go away!
-        elif request.Start.Date <= DateTime.Today then
+        elif request.Start.Date <= today then
             Error "The request starts in the past"
         else
             Ok [RequestCreated request]
@@ -83,7 +82,7 @@ module Logic =
         | _ ->
             Error "Request cannot be validated"
 
-    let decide (userRequests: UserRequestsState) (user: User) (command: Command) =
+    let decide (userRequests: UserRequestsState) (user: User) (command: Command) (today: DateTime) =
         let relatedUserId = command.UserId
         match user with
         | Employee userId when userId <> relatedUserId ->
@@ -98,7 +97,7 @@ module Logic =
                     |> Seq.where (fun state -> state.IsActive)
                     |> Seq.map (fun state -> state.Request)
 
-                createRequest activeUserRequests request
+                createRequest activeUserRequests request today
 
             | ValidateRequest (_, requestId) ->
                 if user <> Manager then

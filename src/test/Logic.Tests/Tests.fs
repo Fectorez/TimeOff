@@ -5,8 +5,9 @@ open System
 
 let Given (events: RequestEvent list) = events
 let ConnectedAs (user: User) (events: RequestEvent list) = events, user
-let When (command: Command) (events: RequestEvent list, user: User) = events, user, command
-let Then expected message (events: RequestEvent list, user: User, command: Command) =
+let WithToday (today: DateTime) (events: RequestEvent list, user: User) = events, user, today
+let When (command: Command) (events: RequestEvent list, user: User, today: DateTime) = events, user, today, command
+let Then expected message (events: RequestEvent list, user: User, today: DateTime, command: Command) =
     let evolveGlobalState (userStates: Map<UserId, Logic.UserRequestsState>) (event: RequestEvent) =
         let userState = defaultArg (Map.tryFind event.Request.UserId userStates) Map.empty
         let newUserState = Logic.evolveUserRequests userState event
@@ -14,7 +15,7 @@ let Then expected message (events: RequestEvent list, user: User, command: Comma
 
     let globalState = Seq.fold evolveGlobalState Map.empty events
     let userRequestsState = defaultArg (Map.tryFind command.UserId globalState) Map.empty
-    let result = Logic.decide userRequestsState user command
+    let result = Logic.decide userRequestsState user command today
     Expect.equal result expected message
 
 open System
@@ -116,8 +117,23 @@ let creationTests =
 
       Given [ ]
       |> ConnectedAs (Employee "jdoe")
+      |> WithToday (DateTime(2019, 1, 1))
       |> When (RequestTimeOff request)
       |> Then (Ok [RequestCreated request]) "The request should have been created"
+    }
+
+    test "A request is created in the past" {
+      let request = {
+        UserId = "jdoe"
+        RequestId = Guid.NewGuid()
+        Start = { Date = DateTime(2019, 12, 27); HalfDay = AM }
+        End = { Date = DateTime(2019, 12, 27); HalfDay = PM } }
+
+      Given [ ]
+      |> ConnectedAs (Employee "jdoe")
+      |> WithToday (DateTime(2019, 12, 31))
+      |> When (RequestTimeOff request)
+      |> Then (Error "The request starts in the past") "The request should not have been created because it is in the past!"
     }
   ]
 
@@ -133,6 +149,7 @@ let validationTests =
 
       Given [ RequestCreated request ]
       |> ConnectedAs Manager
+      |> WithToday (DateTime(2019, 1, 1))
       |> When (ValidateRequest ("jdoe", request.RequestId))
       |> Then (Ok [RequestValidated request]) "The request should have been validated"
     }
