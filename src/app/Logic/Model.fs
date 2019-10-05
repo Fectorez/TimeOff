@@ -81,7 +81,7 @@ module Logic =
             | RejectedCancellation _
             | PendingCancellation _ -> Ok [Canceled request]
             | _ -> Error "Cannot cancel."
-        
+
         | RequestRejected request ->
             match state with
             | PendingValidation _ -> Ok [Rejected request]
@@ -95,16 +95,24 @@ module Logic =
             | Ok stateList -> userRequests.Add (event.Request.RequestId, stateList.Head)
             | _ -> userRequests
 
+    
+    
+    let overlapsWith (a: TimeOffRequest) (b: TimeOffRequest) =
+        let compBoundaries (a: Boundary) (b: Boundary) =
+            let compHalfDays (h1: HalfDay) (h2: HalfDay) =
+                match h1, h2 with
+                | AM, PM -> -1
+                | PM, AM -> 1
+                | _ -> 0
+            let compDate = a.Date.CompareTo(b.Date)
+            if compDate <> 0 then compDate
+            else compHalfDays a.HalfDay b.HalfDay
 
+        let inRange (range: TimeOffRequest) (b: Boundary) =
+            compBoundaries b range.End <> 1 && compBoundaries b range.Start <> -1
 
+        a.Start |> inRange b || a.End |> inRange b
 
-    let overlapsWith (request1: TimeOffRequest) (request2: TimeOffRequest) =
-        not(
-               request1.Start.Date.CompareTo(request2.End.Date) > 0
-            || request2.Start.Date.CompareTo(request1.End.Date) > 0
-            || request1.Start.Date.CompareTo(request2.End.Date) = 0 && request1.Start.HalfDay = PM && request1.Start.HalfDay = AM
-            || request2.Start.Date.CompareTo(request1.End.Date) = 0 && request2.Start.HalfDay = PM && request1.Start.HalfDay = AM
-        )
 
     let rec overlapsWithAnyRequest (otherRequests: TimeOffRequest seq) (request: TimeOffRequest) =
         if Seq.isEmpty otherRequests then
