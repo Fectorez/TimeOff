@@ -8,27 +8,33 @@ type Command =
     | ValidateRequest of UserId * Guid
     | CancelRequest   of UserId * Guid
     | RejectRequest   of UserId * Guid
+    | RejectCancellationClaim of UserId * Guid  // manager refuse la demande d'annulation
     with
     member this.UserId =
         match this with
         | RequestTimeOff request -> request.UserId
         | ValidateRequest (userId, _)
         | CancelRequest   (userId, _)
-        | RejectRequest   (userId, _) -> userId
+        | RejectRequest   (userId, _)
+        | RejectCancellationClaim (userId, _) -> userId
 
 // And our events
 type RequestEvent =
-    | RequestCreated   of TimeOffRequest
-    | RequestValidated of TimeOffRequest
-    | RequestCanceled  of TimeOffRequest
-    | RequestRejected  of TimeOffRequest
+    | RequestCreated       of TimeOffRequest
+    | RequestValidated     of TimeOffRequest
+    | RequestCanceled      of TimeOffRequest
+    | RequestRejected      of TimeOffRequest
+    | CancellationClaimed of TimeOffRequest
+    | CancellationRejected of TimeOffRequest
     with
     member this.Request =
         match this with
-        | RequestCreated   request
+        | RequestCreated request
         | RequestValidated request
-        | RequestRejected  request
-        | RequestCanceled  request -> request
+        | RequestCanceled request
+        | RequestRejected request
+        | CancellationClaimed request
+        | CancellationRejected request -> request
 
 // We then define the state of the system,
 // and our 2 main functions `decide` and `evolve`
@@ -81,6 +87,17 @@ module Logic =
             | RejectedCancellation _
             | PendingCancellation _ -> Ok [Canceled request]
             | _ -> Error "Cannot cancel."
+        
+        | CancellationClaimed request ->
+            match state with
+            | PendingValidation _
+            | Validated _ -> Ok [PendingCancellation request]
+            | _ -> Error "Cannot claim cancel."
+        
+        | CancellationRejected request ->
+            match state with
+            | PendingCancellation _ -> Ok [RejectedCancellation request]
+            | _ -> Error "Cancellation claim cannot be rejected"
 
         | RequestRejected request ->
             match state with
@@ -136,7 +153,7 @@ module Logic =
         | PendingValidation request -> Ok [RequestValidated request]
         | _ -> Error "Request cannot be validated"
     
-    let cancelRequest requestState user =
+    let cancelRequest requestState user today =
         match user with
         | Manager ->
             match requestState with
@@ -148,7 +165,9 @@ module Logic =
         | Employee _ ->
             match requestState with
             | Validated request
-            | PendingValidation request -> Ok[RequestCanceled request]
+            | PendingValidation request -> 
+                if request.Start.Date > today then Ok[RequestCanceled request]
+                else Ok[CancellationClaimed request]
             | _ -> Error "Request cannot be canceled"
     
     let rejectRequest requestState =
@@ -156,6 +175,10 @@ module Logic =
         | PendingValidation request -> Ok [RequestRejected request]
         | _ -> Error "Request cannot be rejected"
 
+    let rejectCancellationClaim requestState =
+        match requestState with
+        | PendingCancellation request -> Ok [CancellationRejected request]
+        | _ -> Error "Cancellation claim cannot be rejected"
 
 
 
@@ -185,7 +208,7 @@ module Logic =
 
             | CancelRequest (_, requestId) ->
                 let requestState = defaultArg (userRequests.TryFind requestId) NotCreated
-                cancelRequest requestState user
+                cancelRequest requestState user today
 
             | RejectRequest (_, requestId) ->
                 if user <> Manager then
@@ -193,3 +216,10 @@ module Logic =
                 else
                     let requestState = defaultArg (userRequests.TryFind requestId) NotCreated
                     rejectRequest requestState
+
+            | RejectCancellationClaim (_, requestId) ->
+                if user <> Manager then
+                    Error "Unauthorized"
+                else
+                    let requestState = defaultArg (userRequests.TryFind requestId) NotCreated
+                    rejectCancellationClaim requestState

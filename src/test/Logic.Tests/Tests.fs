@@ -280,6 +280,20 @@ let CancellationTests =
       |> Then (Ok [RequestCanceled request]) "The request should have been canceled by the employee."
     }
 
+    test "An employee claims a cancellation (request in the past)" {
+      let request = {
+        UserId = "jdoe"
+        RequestId = Guid.NewGuid()
+        Start = { Date = DateTime(2019, 7, 1); HalfDay = AM }
+        End = { Date = DateTime(2019, 7, 31); HalfDay = PM } }
+
+      Given [ RequestCreated request ; RequestValidated request ]
+      |> ConnectedAs (Employee "jdoe")
+      |> WithToday (DateTime(2019, 12, 12))
+      |> When (CancelRequest ("jdoe", request.RequestId))
+      |> Then (Ok [CancellationClaimed request]) "The request should have been in pending cancellation."
+    }
+
     test "A rejected request cannot be canceled" {
       let request = {
         UserId = "jdoe"
