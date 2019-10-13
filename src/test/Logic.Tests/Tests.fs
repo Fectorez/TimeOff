@@ -122,6 +122,9 @@ let overlapTests =
     }
   ]
 
+
+
+
 [<Tests>]
 let creationTests =
   testList "Creation tests" [
@@ -153,6 +156,10 @@ let creationTests =
       |> Then (Error "The request starts in the past") "The request should not have been created because it is in the past!"
     }
   ]
+
+
+
+
 
 [<Tests>]
 let validationTests =
@@ -199,6 +206,8 @@ let validationTests =
       |> Then (Error "Request cannot be validated") "The validated request should not have been validated."
     }
   ]
+
+
 
 
 [<Tests>]
@@ -249,8 +258,10 @@ let rejectionTests =
 
 
 
+
+
 [<Tests>]
-let CancellationTests =
+let cancellationTests =
   testList "Cancellation tests" [
     test "A request is canceled by the manager" {
       let request = {
@@ -280,6 +291,28 @@ let CancellationTests =
       |> Then (Ok [RequestCanceled request]) "The request should have been canceled by the employee."
     }
 
+    test "A rejected request cannot be canceled" {
+      let request = {
+        UserId = "jdoe"
+        RequestId = Guid.NewGuid()
+        Start = { Date = DateTime(2019, 12, 27); HalfDay = AM }
+        End = { Date = DateTime(2019, 12, 27); HalfDay = PM } }
+
+      Given [ RequestCreated request ; RequestRejected request]
+      |> ConnectedAs Manager
+      |> WithToday (DateTime(2019, 1, 1))
+      |> When (CancelRequest ("jdoe", request.RequestId))
+      |> Then (Error "Request cannot be canceled") "The request should have been canceled by the employee."
+    }
+  ]
+
+
+
+
+
+[<Tests>]
+let cancellationClaimsTests =
+  testList "Canellation claims tests" [
     test "An employee claims a cancellation (request in the past)" {
       let request = {
         UserId = "jdoe"
@@ -294,17 +327,31 @@ let CancellationTests =
       |> Then (Ok [CancellationClaimed request]) "The request should have been in pending cancellation."
     }
 
-    test "A rejected request cannot be canceled" {
+    test "The manager reject a cancellation claim" {
       let request = {
         UserId = "jdoe"
         RequestId = Guid.NewGuid()
-        Start = { Date = DateTime(2019, 12, 27); HalfDay = AM }
-        End = { Date = DateTime(2019, 12, 27); HalfDay = PM } }
+        Start = { Date = DateTime(2019, 7, 1); HalfDay = AM }
+        End = { Date = DateTime(2019, 7, 31); HalfDay = PM } }
 
-      Given [ RequestCreated request ; RequestRejected request]
+      Given [ RequestCreated request ; RequestValidated request ; CancellationClaimed request]
       |> ConnectedAs Manager
-      |> WithToday (DateTime(2019, 1, 1))
+      |> WithToday (DateTime(2019, 12, 12))
+      |> When (RejectCancellationClaim ("jdoe", request.RequestId))
+      |> Then (Ok [CancellationRejected request]) "The cancellation claim should have been rejected."
+    }
+
+    test "The manager accepts a cancellation claim" {
+      let request = {
+        UserId = "jdoe"
+        RequestId = Guid.NewGuid()
+        Start = { Date = DateTime(2019, 7, 1); HalfDay = AM }
+        End = { Date = DateTime(2019, 7, 31); HalfDay = PM } }
+
+      Given [ RequestCreated request ; RequestValidated request ; CancellationClaimed request]
+      |> ConnectedAs Manager
+      |> WithToday (DateTime(2019, 12, 12))
       |> When (CancelRequest ("jdoe", request.RequestId))
-      |> Then (Error "Request cannot be canceled") "The request should have been canceled by the employee."
+      |> Then (Ok [RequestCanceled request]) "The cancellation claim should have been accepted."
     }
   ]

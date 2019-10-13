@@ -24,7 +24,7 @@ type RequestEvent =
     | RequestValidated     of TimeOffRequest
     | RequestCanceled      of TimeOffRequest
     | RequestRejected      of TimeOffRequest
-    | CancellationClaimed of TimeOffRequest
+    | CancellationClaimed  of TimeOffRequest
     | CancellationRejected of TimeOffRequest
     with
     member this.Request =
@@ -81,12 +81,8 @@ module Logic =
             | _ -> Error "Cannot validate a request not in pending validation."
 
         | RequestCanceled request ->
-            match state with
-            | PendingValidation _
-            | Validated _
-            | RejectedCancellation _
-            | PendingCancellation _ -> Ok [Canceled request]
-            | _ -> Error "Cannot cancel."
+            if state.IsActive then Ok [Canceled request]
+            else Error "Cannot cancel."
         
         | CancellationClaimed request ->
             match state with
