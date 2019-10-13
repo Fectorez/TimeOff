@@ -9,6 +9,12 @@
 # Développement
 
 ## Logique métier
-- Commandes, états et événements supplémentaires (annulation, rejet)
-- États/transitions presque fini : reste à gérer les conditions pour les demandes d'annulation par un employé
-- Tests pour ce qui est fait actuellement ok
+- workflow ok
+- demander au prof s'il faut vérifier l'user dans le evolve
+
+## API
+### Connexion
+/api/users/login  
+UserName: employee1  
+Password: employee1  
+(de 1 à 5)
