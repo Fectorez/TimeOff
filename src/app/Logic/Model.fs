@@ -128,10 +128,7 @@ module Logic =
 
 
     let rec overlapsWithAnyRequest (otherRequests: TimeOffRequest seq) (request: TimeOffRequest) =
-        if Seq.isEmpty otherRequests then
-            false
-        else (Seq.head otherRequests) |> overlapsWith request
-            || overlapsWithAnyRequest (Seq.tail otherRequests) request
+        Seq.exists (fun otherReq -> request |> overlapsWith otherReq) otherRequests
 
 
 
