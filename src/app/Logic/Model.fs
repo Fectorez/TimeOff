@@ -111,18 +111,8 @@ module Logic =
     
     
     let overlapsWith (a: TimeOffRequest) (b: TimeOffRequest) =
-        let compBoundaries (a: Boundary) (b: Boundary) =
-            let compHalfDays (h1: HalfDay) (h2: HalfDay) =
-                match h1, h2 with
-                | AM, PM -> -1
-                | PM, AM -> 1
-                | _ -> 0
-            let compDate = a.Date.CompareTo(b.Date)
-            if compDate <> 0 then compDate
-            else compHalfDays a.HalfDay b.HalfDay
-
         let inRange (range: TimeOffRequest) (b: Boundary) =
-            compBoundaries b range.End <> 1 && compBoundaries b range.Start <> -1
+            b >= range.Start && b <= range.End
 
         a.Start |> inRange b || a.End |> inRange b
 
