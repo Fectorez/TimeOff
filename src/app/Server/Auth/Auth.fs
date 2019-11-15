@@ -68,6 +68,6 @@ module Handlers =
             | Some authHeader ->
                 let jwt = authHeader.Replace("Bearer ", "")
                 match isValid jwt with
-                | Some identity -> f identity.User
+                | Some identity -> f identity
                 | None -> invalidToken
             | None -> missingToken) next ctx

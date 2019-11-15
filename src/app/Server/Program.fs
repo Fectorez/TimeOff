@@ -28,6 +28,14 @@ module HttpHandlers =
         RequestId: Guid
     }
 
+    let getRequestsForUser (eventStore: IStore<UserId, RequestEvent>) (userName: string) =
+      fun (next: HttpFunc) (ctx: HttpContext) ->
+        task {
+            let eventStream = eventStore.GetStream(userName)
+            let state = eventStream.ReadAll()
+            return! Successful.OK state next ctx
+        }
+            
     let requestTimeOff (handleCommand: Command -> Result<RequestEvent list, string>) =
         fun (next: HttpFunc) (ctx: HttpContext) ->
             task {
@@ -52,7 +60,45 @@ module HttpHandlers =
                 | Error message ->
                     return! (BAD_REQUEST message) next ctx
             }
-
+            
+    let cancelRequest (handleCommand: Command -> Result<RequestEvent list, string>) =
+        fun (next: HttpFunc) (ctx: HttpContext) ->
+            task {
+                let userAndRequestId = ctx.BindQueryString<UserAndRequestId>()
+                let command = CancelRequest (userAndRequestId.UserId, userAndRequestId.RequestId)
+                let result = handleCommand command
+                match result with
+                | Ok [RequestCanceled cancelRequest] -> return! json cancelRequest next ctx
+                | Ok _ -> return! Successful.NO_CONTENT next ctx
+                | Error message ->
+                    return! (BAD_REQUEST message) next ctx
+            }
+    
+    let rejectRequest (handleCommand: Command -> Result<RequestEvent list, string>) =
+        fun (next: HttpFunc) (ctx: HttpContext) ->
+            task {
+                let userAndRequestId = ctx.BindQueryString<UserAndRequestId>()
+                let command = RejectRequest (userAndRequestId.UserId, userAndRequestId.RequestId)
+                let result = handleCommand command
+                match result with
+                | Ok [RequestRejected rejectRequest] -> return! json rejectRequest next ctx
+                | Ok _ -> return! Successful.NO_CONTENT next ctx
+                | Error message ->
+                    return! (BAD_REQUEST message) next ctx
+            }
+            
+    let rejectCancellationClaim (handleCommand: Command -> Result<RequestEvent list, string>) =
+        fun (next: HttpFunc) (ctx: HttpContext) ->
+            task {
+                let userAndRequestId = ctx.BindQueryString<UserAndRequestId>()
+                let command = RejectCancellationClaim (userAndRequestId.UserId, userAndRequestId.RequestId)
+                let result = handleCommand command
+                match result with
+                | Ok [CancellationRejected rejectRequest] -> return! json rejectRequest next ctx
+                | Ok _ -> return! Successful.NO_CONTENT next ctx
+                | Error message ->
+                    return! (BAD_REQUEST message) next ctx
+            }
 // ---------------------------------
 // Web app
 // ---------------------------------
@@ -80,10 +126,14 @@ let webApp (eventStore: IStore<UserId, RequestEvent>) =
             (choose [
                 route "/users/login" >=> POST >=> Auth.Handlers.login
                 subRoute "/timeoff"
-                    (Auth.Handlers.requiresJwtTokenForAPI (fun user ->
+                    (Auth.Handlers.requiresJwtTokenForAPI (fun identity ->
                         choose [
-                            POST >=> route "/request" >=> HttpHandlers.requestTimeOff (handleCommand user)
-                            POST >=> route "/validate-request" >=> HttpHandlers.validateRequest (handleCommand user)
+                            GET >=> route "/requests" >=> HttpHandlers.getRequestsForUser eventStore identity.UserName
+                            POST >=> route "/request" >=> HttpHandlers.requestTimeOff (handleCommand identity.User)
+                            POST >=> route "/validate-request" >=> HttpHandlers.validateRequest (handleCommand identity.User)
+                            POST >=> route "/cancel-request" >=> HttpHandlers.cancelRequest (handleCommand identity.User)
+                            POST >=> route "/rejectRequest" >=> HttpHandlers.rejectRequest (handleCommand identity.User)
+                            POST >=> route "/rejectCancellationClaim" >=> HttpHandlers.rejectCancellationClaim (handleCommand identity.User)
                         ]
                     ))
             ])
