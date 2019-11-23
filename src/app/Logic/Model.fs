@@ -1,6 +1,7 @@
 namespace TimeOff
 
 open System
+open System.Collections.Generic
 
 // Then our commands
 type Command =
@@ -206,3 +207,20 @@ module Logic =
                 else
                     let requestState = defaultArg (userRequests.TryFind requestId) NotCreated
                     rejectCancellationClaim requestState
+                    
+        
+
+    let rec calculateAttributedTimeOffFromStartYear (requests: list<TimeOffRequest>) (acc: int) =
+        match requests with
+        | [] -> acc
+        | head::tail -> calculateAttributedTimeOffFromStartYear tail (acc + (head.End.Date - head.Start.Date).Days + 1)  
+        
+    let checkIfCurrentYearRequest (request: TimeOffRequest) =
+        let currentYear = System.DateTime.Now.Year
+        request.Start.Date.Year = currentYear && request.End.Date.Year = currentYear
+        
+        
+    let filterOnlyRequestOfCurrentYear requests: list<TimeOffRequest> =
+        match requests with
+        | [] -> []
+        | listRequest -> List.filter (checkIfCurrentYearRequest) listRequest
