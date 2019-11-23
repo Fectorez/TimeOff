@@ -24,3 +24,9 @@ type TimeOffRequest = {
     Start: Boundary
     End: Boundary
 }
+
+[<CLIMutable>]
+type UserAndRequestId = {
+    UserId: UserId
+    RequestId: Guid    
+}

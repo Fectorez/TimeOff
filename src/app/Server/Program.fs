@@ -22,12 +22,6 @@ module HttpHandlers =
 
     open Microsoft.AspNetCore.Http
 
-    [<CLIMutable>]
-    type UserAndRequestId = {
-        UserId: UserId
-        RequestId: Guid
-    }
-
     let getRequestsForUser (eventStore: IStore<UserId, RequestEvent>) (userName: string) =
       fun (next: HttpFunc) (ctx: HttpContext) ->
         task {
@@ -51,7 +45,7 @@ module HttpHandlers =
     let validateRequest (handleCommand: Command -> Result<RequestEvent list, string>) =
         fun (next: HttpFunc) (ctx: HttpContext) ->
             task {
-                let userAndRequestId = ctx.BindQueryString<UserAndRequestId>()
+                let! userAndRequestId = ctx.BindJsonAsync<UserAndRequestId>()
                 let command = ValidateRequest (userAndRequestId.UserId, userAndRequestId.RequestId)
                 let result = handleCommand command
                 match result with
@@ -64,7 +58,7 @@ module HttpHandlers =
     let cancelRequest (handleCommand: Command -> Result<RequestEvent list, string>) =
         fun (next: HttpFunc) (ctx: HttpContext) ->
             task {
-                let userAndRequestId = ctx.BindQueryString<UserAndRequestId>()
+                let! userAndRequestId = ctx.BindJsonAsync<UserAndRequestId>()
                 let command = CancelRequest (userAndRequestId.UserId, userAndRequestId.RequestId)
                 let result = handleCommand command
                 match result with
@@ -77,7 +71,7 @@ module HttpHandlers =
     let rejectRequest (handleCommand: Command -> Result<RequestEvent list, string>) =
         fun (next: HttpFunc) (ctx: HttpContext) ->
             task {
-                let userAndRequestId = ctx.BindQueryString<UserAndRequestId>()
+                let! userAndRequestId = ctx.BindJsonAsync<UserAndRequestId>()
                 let command = RejectRequest (userAndRequestId.UserId, userAndRequestId.RequestId)
                 let result = handleCommand command
                 match result with
@@ -90,7 +84,7 @@ module HttpHandlers =
     let rejectCancellationClaim (handleCommand: Command -> Result<RequestEvent list, string>) =
         fun (next: HttpFunc) (ctx: HttpContext) ->
             task {
-                let userAndRequestId = ctx.BindQueryString<UserAndRequestId>()
+                let! userAndRequestId = ctx.BindJsonAsync<UserAndRequestId>()
                 let command = RejectCancellationClaim (userAndRequestId.UserId, userAndRequestId.RequestId)
                 let result = handleCommand command
                 match result with
@@ -130,8 +124,8 @@ let webApp (eventStore: IStore<UserId, RequestEvent>) =
                         choose [
                             GET >=> route "/requests" >=> HttpHandlers.getRequestsForUser eventStore identity.UserName
                             POST >=> route "/request" >=> HttpHandlers.requestTimeOff (handleCommand identity.User)
-                            POST >=> route "/validate-request" >=> HttpHandlers.validateRequest (handleCommand identity.User)
-                            POST >=> route "/cancel-request" >=> HttpHandlers.cancelRequest (handleCommand identity.User)
+                            POST >=> route "/validateRequest" >=> HttpHandlers.validateRequest (handleCommand identity.User)
+                            POST >=> route "/cancelRequest" >=> HttpHandlers.cancelRequest (handleCommand identity.User)
                             POST >=> route "/rejectRequest" >=> HttpHandlers.rejectRequest (handleCommand identity.User)
                             POST >=> route "/rejectCancellationClaim" >=> HttpHandlers.rejectCancellationClaim (handleCommand identity.User)
                         ]

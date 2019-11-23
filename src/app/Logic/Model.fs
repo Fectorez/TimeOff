@@ -1,4 +1,4 @@
-﻿namespace TimeOff
+namespace TimeOff
 
 open System
 
