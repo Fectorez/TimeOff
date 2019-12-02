@@ -47,6 +47,13 @@ module Logic =
     [<Literal>]
     let MONTHS_PER_YEAR = 12
 
+    let HOLIDAYS = [
+        DateTime(2018, 1, 1)
+        DateTime(2019, 1, 1)
+        DateTime(2020, 1, 1)
+        DateTime(2019, 11, 11)
+    ]
+
     type RequestState =
         | NotCreated
         | PendingValidation of TimeOffRequest
@@ -214,18 +221,19 @@ module Logic =
                     let requestState = defaultArg (userRequests.TryFind requestId) NotCreated
                     rejectCancellationClaim requestState
 
-    // nb jours de la semaine entre 2 dates
+    // nb jours de la semaine entre 2 dates, hors jours fériés
     let rec getBusinessDays (startD: DateTime) (endD: DateTime): int =
         if startD > endD then getBusinessDays endD startD
         else
             let rec getBusinessDaysRec (startD: DateTime) (endD: DateTime) (acc: int): int =
                 if startD > endD then
                     acc
+                else if startD.DayOfWeek = DayOfWeek.Saturday
+                    || startD.DayOfWeek = DayOfWeek.Sunday
+                    || List.contains startD HOLIDAYS then
+                    getBusinessDaysRec (startD.AddDays 1.0) endD acc
                 else
-                    match startD.DayOfWeek with
-                    | DayOfWeek.Saturday
-                    | DayOfWeek.Sunday -> getBusinessDaysRec (startD.AddDays 1.0) endD acc
-                    | _ -> getBusinessDaysRec (startD.AddDays 1.0) endD (acc + 1)
+                    getBusinessDaysRec (startD.AddDays 1.0) endD (acc + 1)
             getBusinessDaysRec startD endD 0
 
     let timeOffDuration (timeOff: TimeOffRequest): float =

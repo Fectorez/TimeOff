@@ -289,11 +289,11 @@ let getBusinessDaysTests =
     test "1 week" {
       Expect.equal (Logic.getBusinessDays (DateTime(2019,12,2)) (DateTime(2019,12,8))) 5 "should be 5"
     }
-    test "1 month" {
-      Expect.equal (Logic.getBusinessDays (DateTime(2019,11,25)) (DateTime(2020,1,5))) 30 "should be 30"
+    test "1 month with 1 holiday" {
+      Expect.equal (Logic.getBusinessDays (DateTime(2019,11,25)) (DateTime(2020,1,5))) 29 "should be 29"
     }
     test "1 day" {
-      Expect.equal (Logic.getBusinessDays (DateTime(2019,11,11)) (DateTime(2019,11,11))) 1 "should be 1"
+      Expect.equal (Logic.getBusinessDays (DateTime(2019,11,12)) (DateTime(2019,11,12))) 1 "should be 1"
     }
 ]
 
@@ -302,7 +302,7 @@ let getBusinessDaysTests =
 let timeOffDurationTests =
   testList "timeOffDurationTests" [
     test "1 month" {
-      Expect.equal (Logic.timeOffDuration reqJanuaryFull) 23.0 "should be 23"
+      Expect.equal (Logic.timeOffDuration reqJanuaryFull) 22.0 "should be 22"
     }
     test "1 day" {
       Expect.equal (Logic.timeOffDuration reqOctober2) 1.0 "should be 1"
@@ -316,10 +316,10 @@ let timeOffDurationTests =
 let timeOffDurationListTests =
   testList "timeOffDurationListTests" [
     test "1 TimeOff" {
-      Expect.equal (Logic.timeOffDurationList [reqJanuaryFull]) 23.0 "should be 23"
+      Expect.equal (Logic.timeOffDurationList [reqJanuaryFull]) 22.0 "should be 22"
     }
     test "2 TimeOff" {
-      Expect.equal (Logic.timeOffDurationList [reqJanuaryFull; reqOctober2]) 24.0 "should be 24"
+      Expect.equal (Logic.timeOffDurationList [reqJanuaryFull; reqOctober2]) 23.0 "should be 23"
     }
   ]
 
@@ -339,7 +339,7 @@ let remainingInCompletedYearTests =
   testList "remainingInCompletedYearTests" [
     test "1 month + 2 day taken" {
       let result: float = Logic.remainingInCompletedYear [reqJanuaryFull2018; reqOctober2_2018; reqOctober3_2018] 2018
-      Expect.equal (Math.Round(result, 2)) -0.04 "should be -0.04"
+      Expect.equal (Math.Round(result, 2)) 0.96 "should be 0.96"
     }
     test "1 day + 1 day taken" {
       Expect.equal (Logic.remainingInCompletedYear [reqOctober2_2018; reqOctober3_2018] 2018) 22.96 "should be 22.96"
@@ -350,10 +350,10 @@ let remainingInCompletedYearTests =
 let takenToDateTests =
   testList "takenToDateTests" [
     test "1 month taken" {
-      Expect.equal (Logic.takenToDate [reqJanuaryFull] (DateTime(2019,12,12))) 23.0 "should be 23.0"
+      Expect.equal (Logic.takenToDate [reqJanuaryFull] (DateTime(2019,12,12))) 22.0 "should be 22.0"
     }
     test "1 month taken with a day planned" {
-      Expect.equal (Logic.takenToDate [reqJanuaryFull; reqOctober3] (DateTime(2019,9,12))) 23.0 "should be 23.0"
+      Expect.equal (Logic.takenToDate [reqJanuaryFull; reqOctober3] (DateTime(2019,9,12))) 22.0 "should be 22.0"
     }
 ]
 
