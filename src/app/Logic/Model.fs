@@ -41,6 +41,12 @@ type RequestEvent =
 // and our 2 main functions `decide` and `evolve`
 module Logic =
 
+    [<Literal>]
+    let TIME_OFF_PER_MONTH = 2.08
+
+    [<Literal>]
+    let MONTHS_PER_YEAR = 12
+
     type RequestState =
         | NotCreated
         | PendingValidation of TimeOffRequest
@@ -207,20 +213,67 @@ module Logic =
                 else
                     let requestState = defaultArg (userRequests.TryFind requestId) NotCreated
                     rejectCancellationClaim requestState
-                    
-        
 
-    let rec calculateAttributedTimeOffFromStartYear (requests: list<TimeOffRequest>) (acc: int) =
-        match requests with
-        | [] -> acc
-        | head::tail -> calculateAttributedTimeOffFromStartYear tail (acc + (head.End.Date - head.Start.Date).Days + 1)  
+    // nb jours de la semaine entre 2 dates
+    let rec getBusinessDays (startD: DateTime) (endD: DateTime): int =
+        if startD > endD then getBusinessDays endD startD
+        else
+            let rec getBusinessDaysRec (startD: DateTime) (endD: DateTime) (acc: int): int =
+                if startD > endD then
+                    acc
+                else
+                    match startD.DayOfWeek with
+                    | DayOfWeek.Saturday
+                    | DayOfWeek.Sunday -> getBusinessDaysRec (startD.AddDays 1.0) endD acc
+                    | _ -> getBusinessDaysRec (startD.AddDays 1.0) endD (acc + 1)
+            getBusinessDaysRec startD endD 0
+
+    let timeOffDuration (timeOff: TimeOffRequest): float =
+        let boundaryDiff (a: Boundary) (b: Boundary) =
+            let diffDays = float(getBusinessDays a.Date b.Date)
+            match (a.HalfDay, b.HalfDay) with
+            | (AM, PM) -> diffDays
+            | (AM, AM)
+            | (PM, PM) -> diffDays - 0.5
+            | (PM, AM) -> diffDays - 1.0
         
-    let checkIfCurrentYearRequest (request: TimeOffRequest) =
-        let currentYear = System.DateTime.Now.Year
-        request.Start.Date.Year = currentYear && request.End.Date.Year = currentYear
+        boundaryDiff timeOff.Start timeOff.End
+
+    let timeOffDurationList (requests: list<TimeOffRequest>): float =
+        List.fold (fun acc t -> acc + timeOffDuration t) 0.0 requests
+
+    // let rec calculateAttributedTimeOffFromStartYear (requests: list<TimeOffRequest>) (acc: float) =
+    //     match requests with
+    //     | [] -> acc
+    //     | head::tail -> calculateAttributedTimeOffFromStartYear tail (acc + timeOffDuration head)  
+        
+    // let checkIfCurrentYearRequest (currentYear: int) (request: TimeOffRequest): bool =
+    //     request.Start.Date.Year = currentYear && request.End.Date.Year = currentYear
         
         
-    let filterOnlyRequestOfCurrentYear requests: list<TimeOffRequest> =
-        match requests with
-        | [] -> []
-        | listRequest -> List.filter (checkIfCurrentYearRequest) listRequest
+    // let filterOnlyRequestOfCurrentYear (requests: list<TimeOffRequest>) (currentYear: int) =
+    //     match requests with
+    //     | [] -> []
+    //     | listRequest -> List.filter (checkIfCurrentYearRequest currentYear) listRequest
+
+    // Total nombre congés de l'année jusqu'à aujourd'hui (mois courant non compris)
+    let totalTimeOffUntilDate (date: DateTime): float =
+        float (date.Month - 1) * TIME_OFF_PER_MONTH
+
+    // B. congés restants pour l'année (négatif si trop pris)
+    let remainingInCompletedYear (requests: list<TimeOffRequest>) (year: int): float =
+        TIME_OFF_PER_MONTH * float MONTHS_PER_YEAR - timeOffDurationList ( List.filter (fun timeOff -> timeOff.Start.Date.Year = year ) requests)
+
+    // C.
+    let takenToDate (requests: list<TimeOffRequest>) (today: DateTime): float =
+        requests
+        |> List.filter (fun timeOff -> timeOff.Start.Date.Year = today.Year)
+        |> List.filter (fun timeOff -> timeOff.Start.Date <= today)
+        |> timeOffDurationList
+    
+    // D.
+    let plannedTimeOff (requests: list<TimeOffRequest>) (today: DateTime): float =
+        requests
+        |> List.filter (fun timeOff -> timeOff.Start.Date.Year = today.Year)
+        |> List.filter (fun timeOff -> timeOff.Start.Date > today)
+        |> timeOffDurationList

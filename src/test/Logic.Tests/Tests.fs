@@ -27,11 +27,25 @@ let reqOctober1 = {
   End = { Date = DateTime(2019, 10, 1); HalfDay = PM }
 }
 
+let reqOctober1AM = {
+  UserId = "jdoe"
+  RequestId = Guid.NewGuid()
+  Start = { Date = DateTime(2019, 10, 1); HalfDay = AM }
+  End = { Date = DateTime(2019, 10, 1); HalfDay = AM }
+}
+
 let reqOctober2 = {
   UserId = "jdoe"
   RequestId = Guid.NewGuid()
   Start = { Date = DateTime(2019, 10, 2); HalfDay = AM }
   End = { Date = DateTime(2019, 10, 2); HalfDay = PM }
+}
+
+let reqOctober2_2018 = {
+  UserId = "jdoe"
+  RequestId = Guid.NewGuid()
+  Start = { Date = DateTime(2018, 10, 2); HalfDay = AM }
+  End = { Date = DateTime(2018, 10, 2); HalfDay = PM }
 }
 
 let reqOctober3 = {
@@ -41,11 +55,32 @@ let reqOctober3 = {
   End = { Date = DateTime(2019, 10, 3); HalfDay = PM }
 }
 
+let reqOctober3_2018 = {
+  UserId = "jdoe"
+  RequestId = Guid.NewGuid()
+  Start = { Date = DateTime(2018, 10, 3); HalfDay = AM }
+  End = { Date = DateTime(2018, 10, 3); HalfDay = PM }
+}
+
 let reqJanuaryFull = {
   UserId = "jdoe"
   RequestId = Guid.NewGuid()
   Start = { Date = DateTime(2019, 1, 1); HalfDay = AM }
   End = { Date = DateTime(2019, 1, 31); HalfDay = PM }
+}
+
+let reqJanuaryFull2018 = {
+  UserId = "jdoe"
+  RequestId = Guid.NewGuid()
+  Start = { Date = DateTime(2018, 1, 1); HalfDay = AM }
+  End = { Date = DateTime(2018, 1, 31); HalfDay = PM }
+}
+
+let reqOctoberFull = {
+  UserId = "jdoe"
+  RequestId = Guid.NewGuid()
+  Start = { Date = DateTime(2019, 10, 1); HalfDay = AM }
+  End = { Date = DateTime(2019, 10, 31); HalfDay = PM }
 }
 
 let reqMidJanuaryToMidFebruary = {
@@ -198,7 +233,7 @@ let cancellationTests =
 
 [<Tests>]
 let cancellationClaimsTests =
-  testList "Canellation claims tests" [
+  testList "Cancellation claims tests" [
     test "An employee claims a cancellation (request in the past)" {
       Given [ RequestCreated reqJanuaryFull ; RequestValidated reqJanuaryFull ]
       |> ConnectedAs (Employee "jdoe")
@@ -224,26 +259,111 @@ let cancellationClaimsTests =
     }
   ]
 
-[<Tests>]
-let calculateAttributedTimeOffFromStartYearTest =
-  testList "The cumulation of time off since the beginning of the calendar year" [
-    test "the employee has not taken time off since the beginning of the year" {
-      Expect.equal (Logic.calculateAttributedTimeOffFromStartYear [] 0) 0 "The user has taken 0 of time off"      
-    }
+// [<Tests>]
+// let calculateAttributedTimeOffFromStartYearTest =
+//   testList "The cumulation of time off since the beginning of the calendar year" [
+//     test "the employee has not taken time off since the beginning of the year" {
+//       Expect.equal (Logic.calculateAttributedTimeOffFromStartYear [] 0.0) 0.0 "The user has taken 0 of time off"      
+//     }
     
-    test "the employee has taken one full month (January)" {
-      Expect.equal (Logic.calculateAttributedTimeOffFromStartYear [reqJanuaryFull] 0) 31 "The user has taken 31 of time off"      
-    }
-    test "the employee has not taken 61 days" {
-      Expect.equal (Logic.calculateAttributedTimeOffFromStartYear [reqJanuaryFull; reqMidJanuaryToMidFebruary] 0) 63 "The user has taken 61 of time off"      
-    }
+//     test "the employee has taken one full month (January)" {
+//       Expect.equal (Logic.calculateAttributedTimeOffFromStartYear [reqJanuaryFull] 0.0) 31.0 "The user has taken 31 of time off"      
+//     }
+//     test "the employee has not taken 61 days" {
+//       Expect.equal (Logic.calculateAttributedTimeOffFromStartYear [reqJanuaryFull; reqMidJanuaryToMidFebruary] 0.0) 63.0 "The user has taken 61 of time off"      
+//     }
     
-  ]
+//   ]
   
+// [<Tests>]
+// let filterOnlyRequestOfCurrentYearTest =
+//   testList "Filter all list of all requests to get only requests of a current year" [
+//     test "Filter requests" {
+//       Expect.equal (Logic.filterOnlyRequestOfCurrentYear [reqJanuaryFull; reqMidJanuaryToMidFebruary] 2019) [reqJanuaryFull; reqMidJanuaryToMidFebruary] "should return all requests"
+//     }
+//   ]
+
 [<Tests>]
-let filterOnlyRequestOfCurrentYearTest =
-  testList "Filter all list of all requests to get only requests of a current year" [
-    test "Filter requests" {
-      Expect.equal (Logic.filterOnlyRequestOfCurrentYear [reqJanuaryFull; reqMidJanuaryToMidFebruary]) [reqJanuaryFull; reqMidJanuaryToMidFebruary] "should return all requests"
+let getBusinessDaysTests =
+  testList "getBusinessDaysTests" [
+    test "1 week" {
+      Expect.equal (Logic.getBusinessDays (DateTime(2019,12,2)) (DateTime(2019,12,8))) 5 "should be 5"
+    }
+    test "1 month" {
+      Expect.equal (Logic.getBusinessDays (DateTime(2019,11,25)) (DateTime(2020,1,5))) 30 "should be 30"
+    }
+    test "1 day" {
+      Expect.equal (Logic.getBusinessDays (DateTime(2019,11,11)) (DateTime(2019,11,11))) 1 "should be 1"
+    }
+]
+
+
+[<Tests>]
+let timeOffDurationTests =
+  testList "timeOffDurationTests" [
+    test "1 month" {
+      Expect.equal (Logic.timeOffDuration reqJanuaryFull) 23.0 "should be 23"
+    }
+    test "1 day" {
+      Expect.equal (Logic.timeOffDuration reqOctober2) 1.0 "should be 1"
+    }
+    test "1 AM" {
+      Expect.equal (Logic.timeOffDuration reqOctober1AM) 0.5 "should be 0.5"
     }
   ]
+
+[<Tests>]
+let timeOffDurationListTests =
+  testList "timeOffDurationListTests" [
+    test "1 TimeOff" {
+      Expect.equal (Logic.timeOffDurationList [reqJanuaryFull]) 23.0 "should be 23"
+    }
+    test "2 TimeOff" {
+      Expect.equal (Logic.timeOffDurationList [reqJanuaryFull; reqOctober2]) 24.0 "should be 24"
+    }
+  ]
+
+[<Tests>]
+let totalTimeOffTests =
+  testList "totalTimeOffTests" [
+    test "february 11" {
+      Expect.equal (Logic.totalTimeOffUntilDate (DateTime(2019, 2, 11))) 2.08 "should be 2.08"
+    }
+    test "july 2" {
+      Expect.equal (Logic.totalTimeOffUntilDate (DateTime(2019, 7, 2))) 12.48 "should be 12.48"
+    }
+  ]
+
+[<Tests>]
+let remainingInCompletedYearTests =
+  testList "remainingInCompletedYearTests" [
+    test "1 month + 2 day taken" {
+      let result: float = Logic.remainingInCompletedYear [reqJanuaryFull2018; reqOctober2_2018; reqOctober3_2018] 2018
+      Expect.equal (Math.Round(result, 2)) -0.04 "should be -0.04"
+    }
+    test "1 day + 1 day taken" {
+      Expect.equal (Logic.remainingInCompletedYear [reqOctober2_2018; reqOctober3_2018] 2018) 22.96 "should be 22.96"
+    }
+]
+
+[<Tests>]
+let takenToDateTests =
+  testList "takenToDateTests" [
+    test "1 month taken" {
+      Expect.equal (Logic.takenToDate [reqJanuaryFull] (DateTime(2019,12,12))) 23.0 "should be 23.0"
+    }
+    test "1 month taken with a day planned" {
+      Expect.equal (Logic.takenToDate [reqJanuaryFull; reqOctober3] (DateTime(2019,9,12))) 23.0 "should be 23.0"
+    }
+]
+
+[<Tests>]
+let pannedTimeOffTests =
+  testList "pannedTimeOffTests" [
+    test "1 month planned" {
+      Expect.equal (Logic.plannedTimeOff [reqOctoberFull] (DateTime(2019,1,1))) 23.0 "should be 23.0"
+    }
+    test "1 month planned with 1 month day taken" {
+      Expect.equal (Logic.plannedTimeOff [reqOctoberFull; reqJanuaryFull] (DateTime(2019,5,12))) 23.0 "should be 23.0"
+    }
+]
