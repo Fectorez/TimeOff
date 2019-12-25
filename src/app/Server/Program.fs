@@ -13,6 +13,8 @@ open Microsoft.Extensions.DependencyInjection
 open Giraffe
 open Giraffe.HttpStatusCodeHandlers.RequestErrors
 open FSharp.Control.Tasks
+open Newtonsoft.Json.Linq
+open TimeOff.Logic
 
 // ---------------------------------
 // Handlers
@@ -93,6 +95,43 @@ module HttpHandlers =
                 | Error message ->
                     return! (BAD_REQUEST message) next ctx
             }
+    
+    // Get current Balance
+    let getCurrentBalance (userRequests: Map<Guid, RequestState>) =
+        let getRequestTimeOffFromResquestState (requests: list<TimeOffRequest>) (request: RequestState) =
+            match request with
+            | PendingValidation  timeOffRequest -> timeOffRequest::requests
+            | Validated timeOffRequest -> timeOffRequest::requests
+            | Canceled  timeOffRequest -> timeOffRequest::requests
+            | Rejected  timeOffRequest -> timeOffRequest::requests
+            | RejectedCancellation  timeOffRequest -> timeOffRequest::requests
+            | PendingCancellation  timeOffRequest -> timeOffRequest::requests
+            | _ -> requests
+            
+        fun (next: HttpFunc) (ctx: HttpContext) ->
+            task {
+                let today = DateTime.Today
+                let requests =  Map.fold (fun list guid requestStats -> getRequestTimeOffFromResquestState list requestStats) list.Empty userRequests
+                let allotmentAccruedToDate = Logic.totalTimeOffUntilDate today
+                let carriedOverFromLastYear = Logic.remainingInCompletedYear  requests today.Year
+                let takenToDate = Logic.takenToDate requests today
+                let planned = Logic.plannedTimeOff requests today
+                let currentBalance = allotmentAccruedToDate + carriedOverFromLastYear - takenToDate - planned
+                
+                let jsonResponse = JObject [
+                    JProperty("allotmentAccruedToDate", allotmentAccruedToDate)
+                    JProperty("carriedOverFrom", carriedOverFromLastYear)
+                    JProperty("takenToDate", takenToDate)
+                    JProperty("planned", planned)
+                    JProperty("currentBalance", currentBalance)
+                ]
+                
+                return! Successful.OK jsonResponse next ctx
+            } 
+        
+    
+    
+    
 // ---------------------------------
 // Web app
 // ---------------------------------
@@ -114,7 +153,14 @@ let webApp (eventStore: IStore<UserId, RequestEvent>) =
 
         // Finally, return the result
         result
-        
+
+    let getUserRequests (user: User) =
+        match user with
+        | Employee userId ->
+            let eventStream = eventStore.GetStream(userId)
+            eventStream.ReadAll() |> Seq.fold Logic.evolveUserRequests Map.empty
+        | _ -> Map.empty
+            
     choose [
         subRoute "/api"
             (choose [
@@ -128,6 +174,7 @@ let webApp (eventStore: IStore<UserId, RequestEvent>) =
                             POST >=> route "/cancelRequest" >=> HttpHandlers.cancelRequest (handleCommand identity.User)
                             POST >=> route "/rejectRequest" >=> HttpHandlers.rejectRequest (handleCommand identity.User)
                             POST >=> route "/rejectCancellationClaim" >=> HttpHandlers.rejectCancellationClaim (handleCommand identity.User)
+                            GET >=> route "/currentBalance" >=> HttpHandlers.getCurrentBalance(getUserRequests identity.User)
                         ]
                     ))
             ])
