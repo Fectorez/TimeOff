@@ -19,6 +19,7 @@ let Then expected message (events: RequestEvent list, user: User, today: DateTim
     Expect.equal result expected message
 
 open System
+open TimeOff.AuthTypes
 
 let reqOctober1 = {
   UserId = "jdoe"
@@ -259,30 +260,6 @@ let cancellationClaimsTests =
     }
   ]
 
-// [<Tests>]
-// let calculateAttributedTimeOffFromStartYearTest =
-//   testList "The cumulation of time off since the beginning of the calendar year" [
-//     test "the employee has not taken time off since the beginning of the year" {
-//       Expect.equal (Logic.calculateAttributedTimeOffFromStartYear [] 0.0) 0.0 "The user has taken 0 of time off"      
-//     }
-    
-//     test "the employee has taken one full month (January)" {
-//       Expect.equal (Logic.calculateAttributedTimeOffFromStartYear [reqJanuaryFull] 0.0) 31.0 "The user has taken 31 of time off"      
-//     }
-//     test "the employee has not taken 61 days" {
-//       Expect.equal (Logic.calculateAttributedTimeOffFromStartYear [reqJanuaryFull; reqMidJanuaryToMidFebruary] 0.0) 63.0 "The user has taken 61 of time off"      
-//     }
-    
-//   ]
-  
-// [<Tests>]
-// let filterOnlyRequestOfCurrentYearTest =
-//   testList "Filter all list of all requests to get only requests of a current year" [
-//     test "Filter requests" {
-//       Expect.equal (Logic.filterOnlyRequestOfCurrentYear [reqJanuaryFull; reqMidJanuaryToMidFebruary] 2019) [reqJanuaryFull; reqMidJanuaryToMidFebruary] "should return all requests"
-//     }
-//   ]
-
 [<Tests>]
 let getBusinessDaysTests =
   testList "getBusinessDaysTests" [
@@ -359,7 +336,7 @@ let takenToDateTests =
 
 [<Tests>]
 let pannedTimeOffTests =
-  testList "pannedTimeOffTests" [
+  testList "palannedTimeOffTests" [
     test "1 month planned" {
       Expect.equal (Logic.plannedTimeOff [reqOctoberFull] (DateTime(2019,1,1))) 23.0 "should be 23.0"
     }
@@ -367,3 +344,14 @@ let pannedTimeOffTests =
       Expect.equal (Logic.plannedTimeOff [reqOctoberFull; reqJanuaryFull] (DateTime(2019,5,12))) 23.0 "should be 23.0"
     }
 ]
+
+[<Tests>]
+let timeOffBalanceTests =
+  testList "timeOffBalanceTests" [
+    test "Cumulation of last year and current year time off"{
+      Expect.equal (Logic.timeOffBalance [] (DateTime(2019,5,12))) 33.28 "Should be 2"
+    }
+    test "Full remained time off of last year + full janury taken of the current year" {
+      Expect.equal (Logic.timeOffBalance [reqJanuaryFull] (DateTime(2019,05,15))) 11.28 "Should be 13.28"
+    }
+  ]

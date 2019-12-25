@@ -247,24 +247,11 @@ module Logic =
         
         boundaryDiff timeOff.Start timeOff.End
 
+    //  Le cumul des congés attribués depuis le début de l’année civile.
     let timeOffDurationList (requests: list<TimeOffRequest>): float =
         List.fold (fun acc t -> acc + timeOffDuration t) 0.0 requests
 
-    // let rec calculateAttributedTimeOffFromStartYear (requests: list<TimeOffRequest>) (acc: float) =
-    //     match requests with
-    //     | [] -> acc
-    //     | head::tail -> calculateAttributedTimeOffFromStartYear tail (acc + timeOffDuration head)  
-        
-    // let checkIfCurrentYearRequest (currentYear: int) (request: TimeOffRequest): bool =
-    //     request.Start.Date.Year = currentYear && request.End.Date.Year = currentYear
-        
-        
-    // let filterOnlyRequestOfCurrentYear (requests: list<TimeOffRequest>) (currentYear: int) =
-    //     match requests with
-    //     | [] -> []
-    //     | listRequest -> List.filter (checkIfCurrentYearRequest currentYear) listRequest
-
-    // Total nombre congés de l'année jusqu'à aujourd'hui (mois courant non compris)
+    // A. Total nombre congés de l'année jusqu'à aujourd'hui (mois courant non compris)
     let totalTimeOffUntilDate (date: DateTime): float =
         float (date.Month - 1) * TIME_OFF_PER_MONTH
 
@@ -285,3 +272,10 @@ module Logic =
         |> List.filter (fun timeOff -> timeOff.Start.Date.Year = today.Year)
         |> List.filter (fun timeOff -> timeOff.Start.Date > today)
         |> timeOffDurationList
+        
+    // E. Solde disponible pour l'année
+    let timeOffBalance (requests: list<TimeOffRequest>) (today: DateTime) =
+        totalTimeOffUntilDate today
+        + remainingInCompletedYear requests (today.Year - 1)
+        - takenToDate requests today
+        - plannedTimeOff requests today
