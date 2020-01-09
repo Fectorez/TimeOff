@@ -51,7 +51,7 @@ module HttpHandlers =
                 let command = ValidateRequest (userAndRequestId.UserId, userAndRequestId.RequestId)
                 let result = handleCommand command
                 match result with
-                | Ok [RequestValidated timeOffRequest] -> return! json timeOffRequest next ctx
+                | Ok [RequestValidated (timeOffRequest, today)] -> return! json (timeOffRequest, today) next ctx
                 | Ok _ -> return! Successful.NO_CONTENT next ctx
                 | Error message ->
                     return! (BAD_REQUEST message) next ctx
@@ -64,7 +64,7 @@ module HttpHandlers =
                 let command = CancelRequest (userAndRequestId.UserId, userAndRequestId.RequestId)
                 let result = handleCommand command
                 match result with
-                | Ok [RequestCanceled cancelRequest] -> return! json cancelRequest next ctx
+                | Ok [RequestCanceled (cancelRequest, today)] -> return! json (cancelRequest, today) next ctx
                 | Ok _ -> return! Successful.NO_CONTENT next ctx
                 | Error message ->
                     return! (BAD_REQUEST message) next ctx
@@ -77,7 +77,7 @@ module HttpHandlers =
                 let command = RejectRequest (userAndRequestId.UserId, userAndRequestId.RequestId)
                 let result = handleCommand command
                 match result with
-                | Ok [RequestRejected rejectRequest] -> return! json rejectRequest next ctx
+                | Ok [RequestRejected (rejectRequest, today)] -> return! json (rejectRequest, today) next ctx
                 | Ok _ -> return! Successful.NO_CONTENT next ctx
                 | Error message ->
                     return! (BAD_REQUEST message) next ctx
@@ -90,14 +90,14 @@ module HttpHandlers =
                 let command = RejectCancellationClaim (userAndRequestId.UserId, userAndRequestId.RequestId)
                 let result = handleCommand command
                 match result with
-                | Ok [CancellationRejected rejectRequest] -> return! json rejectRequest next ctx
+                | Ok [CancellationRejected (rejectRequest, today)] -> return! json (rejectRequest, today) next ctx
                 | Ok _ -> return! Successful.NO_CONTENT next ctx
                 | Error message ->
                     return! (BAD_REQUEST message) next ctx
             }
     
     // Get current Balance
-    let getCurrentBalance (userRequests: Map<Guid, RequestState>) =
+    let getCurrentBalance (userRequests: Map<Guid, RequestState>) (requestsEvents: seq<RequestEvent>)=
         let getRequestTimeOffFromResquestState (requests: list<TimeOffRequest>) (request: RequestState) =
             match request with
             | PendingValidation  timeOffRequest -> timeOffRequest::requests
@@ -117,6 +117,15 @@ module HttpHandlers =
                 let takenToDate = Logic.takenToDate requests today
                 let planned = Logic.plannedTimeOff requests today
                 let currentBalance = allotmentAccruedToDate + carriedOverFromLastYear - takenToDate - planned
+                let history =
+                    Logic.getHistory requestsEvents today
+                    |> List.map (fun (date, from, to_, nb, msg) -> JObject [
+                        JProperty("date", date)
+                        JProperty("from", from)
+                        JProperty("to", to_)
+                        JProperty("days", nb)
+                        JProperty("event", msg)
+                    ])
                 
                 let jsonResponse = JObject [
                     JProperty("allotmentAccruedToDate", allotmentAccruedToDate)
@@ -124,6 +133,7 @@ module HttpHandlers =
                     JProperty("takenToDate", takenToDate)
                     JProperty("planned", planned)
                     JProperty("currentBalance", currentBalance)
+                    JProperty("history", history)
                 ]
                 
                 return! Successful.OK jsonResponse next ctx
@@ -153,6 +163,13 @@ let webApp (eventStore: IStore<UserId, RequestEvent>) =
 
         // Finally, return the result
         result
+    
+    let getRequestsEvents (user: User) =
+        match user with
+        | Employee userId ->
+            let eventStream = eventStore.GetStream(userId)
+            eventStream.ReadAll()
+        | _ -> Seq.empty
 
     let getUserRequests (user: User) =
         match user with
@@ -174,7 +191,7 @@ let webApp (eventStore: IStore<UserId, RequestEvent>) =
                             POST >=> route "/cancelRequest" >=> HttpHandlers.cancelRequest (handleCommand identity.User)
                             POST >=> route "/rejectRequest" >=> HttpHandlers.rejectRequest (handleCommand identity.User)
                             POST >=> route "/rejectCancellationClaim" >=> HttpHandlers.rejectCancellationClaim (handleCommand identity.User)
-                            GET >=> route "/currentBalance" >=> HttpHandlers.getCurrentBalance(getUserRequests identity.User)
+                            GET >=> route "/currentBalance" >=> HttpHandlers.getCurrentBalance (getUserRequests identity.User) (getRequestsEvents identity.User)
                         ]
                     ))
             ])

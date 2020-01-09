@@ -21,21 +21,21 @@ type Command =
 
 // And our events
 type RequestEvent =
-    | RequestCreated       of TimeOffRequest
-    | RequestValidated     of TimeOffRequest
-    | RequestCanceled      of TimeOffRequest
-    | RequestRejected      of TimeOffRequest
-    | CancellationClaimed  of TimeOffRequest
-    | CancellationRejected of TimeOffRequest
+    | RequestCreated       of TimeOffRequest * DateTime
+    | RequestValidated     of TimeOffRequest * DateTime
+    | RequestCanceled      of TimeOffRequest * DateTime
+    | RequestRejected      of TimeOffRequest * DateTime
+    | CancellationClaimed  of TimeOffRequest * DateTime
+    | CancellationRejected of TimeOffRequest * DateTime
     with
     member this.Request =
         match this with
-        | RequestCreated request
-        | RequestValidated request
-        | RequestCanceled request
-        | RequestRejected request
-        | CancellationClaimed request
-        | CancellationRejected request -> request
+        | RequestCreated (request, _)
+        | RequestValidated (request, _)
+        | RequestCanceled (request, _)
+        | RequestRejected (request, _)
+        | CancellationClaimed (request, _)
+        | CancellationRejected (request, _) -> request
 
 // We then define the state of the system,
 // and our 2 main functions `decide` and `evolve`
@@ -84,32 +84,32 @@ module Logic =
     let evolveRequest (state: RequestState) (event: RequestEvent) =
         match event with
 
-        | RequestCreated request -> 
+        | RequestCreated (request, _) -> 
             match state with
             | NotCreated -> Ok [PendingValidation request]
             | _ -> Error "Cannot create an already existing request."
 
-        | RequestValidated request ->
+        | RequestValidated (request, _) ->
             match state with
             | PendingValidation _ -> Ok [Validated request]
             | _ -> Error "Cannot validate a request not in pending validation."
 
-        | RequestCanceled request ->
+        | RequestCanceled (request, _) ->
             if state.IsActive then Ok [Canceled request]
             else Error "Cannot cancel."
         
-        | CancellationClaimed request ->
+        | CancellationClaimed (request, _) ->
             match state with
             | PendingValidation _
             | Validated _ -> Ok [PendingCancellation request]
             | _ -> Error "Cannot claim cancel."
         
-        | CancellationRejected request ->
+        | CancellationRejected (request, _) ->
             match state with
             | PendingCancellation _ -> Ok [RejectedCancellation request]
             | _ -> Error "Cancellation claim cannot be rejected"
 
-        | RequestRejected request ->
+        | RequestRejected (request, _) ->
             match state with
             | PendingValidation _ -> Ok [Rejected request]
             | _ -> Error "Cannot reject a request not in pending validation."
@@ -143,11 +143,11 @@ module Logic =
         elif request.Start.Date <= today then
             Error "The request starts in the past"
         else
-            Ok [RequestCreated request]
+            Ok [RequestCreated (request, today)]
 
-    let validateRequest requestState =
+    let validateRequest requestState (today: DateTime) =
         match requestState with
-        | PendingValidation request -> Ok [RequestValidated request]
+        | PendingValidation request -> Ok [RequestValidated (request, today)]
         | _ -> Error "Request cannot be validated"
     
     let cancelRequest requestState user today =
@@ -157,24 +157,24 @@ module Logic =
             | PendingValidation request
             | PendingCancellation request
             | Validated request
-            | RejectedCancellation request -> Ok [RequestCanceled request]
+            | RejectedCancellation request -> Ok [RequestCanceled (request, today)]
             | _ -> Error "Request cannot be canceled"
         | Employee _ ->
             match requestState with
             | Validated request
             | PendingValidation request -> 
-                if request.Start.Date > today then Ok[RequestCanceled request]
-                else Ok[CancellationClaimed request]
+                if request.Start.Date > today then Ok[RequestCanceled (request, today)]
+                else Ok[CancellationClaimed (request, today)]
             | _ -> Error "Request cannot be canceled"
     
-    let rejectRequest requestState =
+    let rejectRequest requestState (today: DateTime) =
         match requestState with
-        | PendingValidation request -> Ok [RequestRejected request]
+        | PendingValidation request -> Ok [RequestRejected (request, today)]
         | _ -> Error "Request cannot be rejected"
 
-    let rejectCancellationClaim requestState =
+    let rejectCancellationClaim requestState (today: DateTime) =
         match requestState with
-        | PendingCancellation request -> Ok [CancellationRejected request]
+        | PendingCancellation request -> Ok [CancellationRejected (request, today)]
         | _ -> Error "Cancellation claim cannot be rejected"
 
 
@@ -201,7 +201,7 @@ module Logic =
                     Error "Unauthorized"
                 else
                     let requestState = defaultArg (userRequests.TryFind requestId) NotCreated
-                    validateRequest requestState
+                    validateRequest requestState today
 
             | CancelRequest (_, requestId) ->
                 let requestState = defaultArg (userRequests.TryFind requestId) NotCreated
@@ -212,14 +212,14 @@ module Logic =
                     Error "Unauthorized"
                 else
                     let requestState = defaultArg (userRequests.TryFind requestId) NotCreated
-                    rejectRequest requestState
+                    rejectRequest requestState today
 
             | RejectCancellationClaim (_, requestId) ->
                 if user <> Manager then
                     Error "Unauthorized"
                 else
                     let requestState = defaultArg (userRequests.TryFind requestId) NotCreated
-                    rejectCancellationClaim requestState
+                    rejectCancellationClaim requestState today
 
     // nb jours de la semaine entre 2 dates, hors jours fériés
     let rec getBusinessDays (startD: DateTime) (endD: DateTime): int =
@@ -279,3 +279,31 @@ module Logic =
         + remainingInCompletedYear requests (today.Year - 1)
         - takenToDate requests today
         - plannedTimeOff requests today
+    
+    // History
+    let getHistory (requestsEvents: seq<RequestEvent>) (today: DateTime) =
+        let dateToString (date: DateTime) =
+            date.ToString "dd/MM/yyyy"
+        let boundaryToString (boundary: Boundary) =
+            dateToString boundary.Date + " " + string boundary.HalfDay
+        let buildLine event =
+            match event with
+            | RequestCreated (request, date) ->  (dateToString date, boundaryToString request.Start, boundaryToString request.End, timeOffDuration request, "New request")
+            | RequestValidated (request, date) ->  (dateToString date, boundaryToString request.Start, boundaryToString request.End, timeOffDuration request, "Validated by manager")
+            | RequestCanceled (request, date) ->  (dateToString date, boundaryToString request.Start, boundaryToString request.End, timeOffDuration request, "Canceled")
+            | RequestRejected (request, date) ->  (dateToString date, boundaryToString request.Start, boundaryToString request.End, timeOffDuration request, "Rejected")
+            | CancellationClaimed (request, date) ->  (dateToString date, boundaryToString request.Start, boundaryToString request.End, timeOffDuration request, "Cancellation claimed")
+            | CancellationRejected (request, date) ->  (dateToString date, boundaryToString request.Start, boundaryToString request.End, timeOffDuration request, "Cancellation rejected")
+        let onlyThisYear year event =
+            match event with
+            | RequestCreated (request, date)
+            | RequestValidated (request, date)
+            | RequestCanceled (request, date)
+            | RequestRejected (request, date)
+            | CancellationClaimed (request, date)
+            | CancellationRejected (request, date) ->  request.Start.Date.Year = year
+        requestsEvents
+
+        |> Seq.filter (onlyThisYear today.Year)
+        |> Seq.map buildLine
+        |> Seq.toList

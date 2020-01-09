@@ -132,7 +132,7 @@ let creationTests =
       |> ConnectedAs (Employee "jdoe")
       |> WithToday (DateTime(2019, 1, 1))
       |> When (RequestTimeOff reqOctober1)
-      |> Then (Ok [RequestCreated reqOctober1]) "The request should have been created"
+      |> Then (Ok [RequestCreated (reqOctober1, DateTime(2019, 1, 1))]) "The request should have been created"
     }
 
     test "A request cannot be created in the past" {
@@ -149,15 +149,15 @@ let creationTests =
 let validationTests =
   testList "Validation tests" [
     test "A request is validated" {
-      Given [ RequestCreated reqOctober1 ]
+      Given [ RequestCreated (reqOctober1, DateTime(2019, 1, 1)) ]
       |> ConnectedAs Manager
       |> WithToday (DateTime(2019, 1, 1))
       |> When (ValidateRequest ("jdoe", reqOctober1.RequestId))
-      |> Then (Ok [RequestValidated reqOctober1]) "The request should have been validated"
+      |> Then (Ok [RequestValidated (reqOctober1, DateTime(2019, 1, 1))]) "The request should have been validated"
     }
 
     test "A request cannot be validated by oneself" {
-      Given [ RequestCreated reqOctober1 ]
+      Given [ RequestCreated (reqOctober1, DateTime(2019, 1, 1)) ]
       |> ConnectedAs (Employee "jdoe")
       |> WithToday (DateTime(2019, 1, 1))
       |> When (ValidateRequest ("jdoe", reqOctober1.RequestId))
@@ -165,7 +165,7 @@ let validationTests =
     }
 
     test "A validated request cannot be validated" {
-      Given [ RequestCreated reqOctober1 ; RequestValidated reqOctober1 ]
+      Given [ RequestCreated (reqOctober1, DateTime(2019, 1, 1)) ; RequestValidated (reqOctober1, DateTime(2019, 1, 1)) ]
       |> ConnectedAs Manager
       |> WithToday (DateTime(2019, 1, 1))
       |> When (ValidateRequest ("jdoe", reqOctober1.RequestId))
@@ -178,15 +178,15 @@ let validationTests =
 let rejectionTests =
   testList "Rejection tests" [
     test "A request is rejected" {
-      Given [ RequestCreated reqOctober1 ]
+      Given [ RequestCreated (reqOctober1, DateTime(2019, 1, 1)) ]
       |> ConnectedAs Manager
       |> WithToday (DateTime(2019, 1, 1))
       |> When (RejectRequest ("jdoe", reqOctober1.RequestId))
-      |> Then (Ok [RequestRejected reqOctober1]) "The request should have been rejected."
+      |> Then (Ok [RequestRejected (reqOctober1, DateTime(2019, 1, 1))]) "The request should have been rejected."
     }
 
     test "A request cannot be rejected by oneself" {
-      Given [ RequestCreated reqOctober1 ]
+      Given [ RequestCreated (reqOctober1, DateTime(2019, 1, 1)) ]
       |> ConnectedAs (Employee "jdoe")
       |> WithToday (DateTime(2019, 1, 1))
       |> When (RejectRequest ("jdoe", reqOctober1.RequestId))
@@ -194,7 +194,7 @@ let rejectionTests =
     }
 
     test "A validated request cannot be rejected" {
-      Given [ RequestCreated reqOctober1 ; RequestValidated reqOctober1 ]
+      Given [ RequestCreated (reqOctober1, DateTime(2019, 1, 1)) ; RequestValidated (reqOctober1, DateTime(2019, 1, 1)) ]
       |> ConnectedAs Manager
       |> WithToday (DateTime(2019, 1, 1))
       |> When (RejectRequest ("jdoe", reqOctober1.RequestId))
@@ -207,23 +207,23 @@ let rejectionTests =
 let cancellationTests =
   testList "Cancellation tests" [
     test "A request is canceled by the manager" {
-      Given [ RequestCreated reqOctober1 ]
+      Given [ RequestCreated (reqOctober1, DateTime(2019, 1, 1)) ]
       |> ConnectedAs Manager
       |> WithToday (DateTime(2019, 1, 1))
       |> When (CancelRequest ("jdoe", reqOctober1.RequestId))
-      |> Then (Ok [RequestCanceled reqOctober1]) "The request should have been canceled by the manager."
+      |> Then (Ok [RequestCanceled (reqOctober1, DateTime(2019, 1, 1))]) "The request should have been canceled by the manager."
     }
 
     test "A request is canceled by the employee" {
-      Given [ RequestCreated reqOctober1 ]
+      Given [ RequestCreated (reqOctober1, DateTime(2019, 1, 1)) ]
       |> ConnectedAs (Employee "jdoe")
       |> WithToday (DateTime(2019, 1, 1))
       |> When (CancelRequest ("jdoe", reqOctober1.RequestId))
-      |> Then (Ok [RequestCanceled reqOctober1]) "The request should have been canceled by the employee."
+      |> Then (Ok [RequestCanceled (reqOctober1, DateTime(2019, 1, 1))]) "The request should have been canceled by the employee."
     }
 
     test "A rejected request cannot be canceled" {
-      Given [ RequestCreated reqOctober1 ; RequestRejected reqOctober1]
+      Given [ RequestCreated (reqOctober1, DateTime(2019, 1, 1)) ; RequestRejected (reqOctober1, DateTime(2019, 1, 1))]
       |> ConnectedAs Manager
       |> WithToday (DateTime(2019, 1, 1))
       |> When (CancelRequest ("jdoe", reqOctober1.RequestId))
@@ -236,27 +236,27 @@ let cancellationTests =
 let cancellationClaimsTests =
   testList "Cancellation claims tests" [
     test "An employee claims a cancellation (request in the past)" {
-      Given [ RequestCreated reqJanuaryFull ; RequestValidated reqJanuaryFull ]
+      Given [ RequestCreated (reqJanuaryFull, DateTime(2019, 12, 12)) ; RequestValidated (reqJanuaryFull, DateTime(2019, 12, 12)) ]
       |> ConnectedAs (Employee "jdoe")
       |> WithToday (DateTime(2019, 12, 12))
       |> When (CancelRequest ("jdoe", reqJanuaryFull.RequestId))
-      |> Then (Ok [CancellationClaimed reqJanuaryFull]) "The request should have been in pending cancellation."
+      |> Then (Ok [CancellationClaimed (reqJanuaryFull, DateTime(2019, 12, 12))]) "The request should have been in pending cancellation."
     }
 
     test "The manager reject a cancellation claim" {
-      Given [ RequestCreated reqJanuaryFull ; RequestValidated reqJanuaryFull ; CancellationClaimed reqJanuaryFull]
+      Given [ RequestCreated (reqJanuaryFull, DateTime(2019, 12, 12)) ; RequestValidated (reqJanuaryFull, DateTime(2019, 12, 12)) ; CancellationClaimed (reqJanuaryFull, DateTime(2019, 12, 12))]
       |> ConnectedAs Manager
       |> WithToday (DateTime(2019, 12, 12))
       |> When (RejectCancellationClaim ("jdoe", reqJanuaryFull.RequestId))
-      |> Then (Ok [CancellationRejected reqJanuaryFull]) "The cancellation claim should have been rejected."
+      |> Then (Ok [CancellationRejected (reqJanuaryFull, DateTime(2019, 12, 12))]) "The cancellation claim should have been rejected."
     }
 
     test "The manager accepts a cancellation claim" {
-      Given [ RequestCreated reqJanuaryFull ; RequestValidated reqJanuaryFull ; CancellationClaimed reqJanuaryFull]
+      Given [ RequestCreated (reqJanuaryFull, DateTime(2019, 12, 12)) ; RequestValidated (reqJanuaryFull, DateTime(2019, 12, 12)) ; CancellationClaimed (reqJanuaryFull, DateTime(2019, 12, 12))]
       |> ConnectedAs Manager
       |> WithToday (DateTime(2019, 12, 12))
       |> When (CancelRequest ("jdoe", reqJanuaryFull.RequestId))
-      |> Then (Ok [RequestCanceled reqJanuaryFull]) "The cancellation claim should have been accepted."
+      |> Then (Ok [RequestCanceled (reqJanuaryFull, DateTime(2019, 12, 12))]) "The cancellation claim should have been accepted."
     }
   ]
 
@@ -335,7 +335,7 @@ let takenToDateTests =
 ]
 
 [<Tests>]
-let pannedTimeOffTests =
+let plannedTimeOffTests =
   testList "palannedTimeOffTests" [
     test "1 month planned" {
       Expect.equal (Logic.plannedTimeOff [reqOctoberFull] (DateTime(2019,1,1))) 23.0 "should be 23.0"
@@ -349,9 +349,20 @@ let pannedTimeOffTests =
 let timeOffBalanceTests =
   testList "timeOffBalanceTests" [
     test "Cumulation of last year and current year time off"{
-      Expect.equal (Logic.timeOffBalance [] (DateTime(2019,5,12))) 33.28 "Should be 2"
+      Expect.equal (Logic.timeOffBalance [] (DateTime(2019,5,12))) 33.28 "Should be 33.28"
     }
-    test "Full remained time off of last year + full janury taken of the current year" {
-      Expect.equal (Logic.timeOffBalance [reqJanuaryFull] (DateTime(2019,05,15))) 11.28 "Should be 13.28"
+    test "Full remained time off of last year + full january taken of the current year" {
+      let result: float = Logic.timeOffBalance [reqJanuaryFull] (DateTime(2019,05,15))
+      Expect.equal (Math.Round(result, 2)) 11.28 "Should be 11.28"
+    }
+  ]
+
+[<Tests>]
+let historyTests =
+  testList "historyTests" [
+    test "history 1 request of 1 day" {
+      let result = Logic.getHistory [RequestCreated (reqOctober1, DateTime(2019, 1, 1))] (DateTime(2019,12,12))
+      let expected = [ ("01/01/2019", "01/10/2019 AM", "01/10/2019 PM", 1.0, "New request") ]
+      Expect.equal result expected "[('01/01/2019', '01/10/2019 AM', '01/10/2019 PM', 1.0, 'New request')]"
     }
   ]
