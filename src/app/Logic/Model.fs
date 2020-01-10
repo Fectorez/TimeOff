@@ -239,11 +239,12 @@ module Logic =
     let timeOffDuration (timeOff: TimeOffRequest): float =
         let boundaryDiff (a: Boundary) (b: Boundary) =
             let diffDays = float(getBusinessDays a.Date b.Date)
-            match (a.HalfDay, b.HalfDay) with
-            | (AM, PM) -> diffDays
-            | (AM, AM)
-            | (PM, PM) -> diffDays - 0.5
-            | (PM, AM) -> diffDays - 1.0
+            match (diffDays, a.HalfDay, b.HalfDay) with
+            | (0.0, _, _)
+            | (_, AM, PM) -> diffDays
+            | (_, AM, AM)
+            | (_, PM, PM) -> diffDays - 0.5
+            | (_, PM, AM) -> diffDays - 1.0
         
         boundaryDiff timeOff.Start timeOff.End
 

@@ -35,6 +35,13 @@ let reqOctober1AM = {
   End = { Date = DateTime(2019, 10, 1); HalfDay = AM }
 }
 
+let reqWeekend = {
+  UserId = "jdoe"
+  RequestId = Guid.NewGuid()
+  Start = { Date = DateTime(2020, 01, 18); HalfDay = AM }
+  End = { Date = DateTime(2020, 01, 19); HalfDay = PM }
+}
+
 let reqOctober2 = {
   UserId = "jdoe"
   RequestId = Guid.NewGuid()
@@ -286,6 +293,9 @@ let timeOffDurationTests =
     }
     test "1 AM" {
       Expect.equal (Logic.timeOffDuration reqOctober1AM) 0.5 "should be 0.5"
+    }
+    test "0 days because no business day (Week-end)" {
+      Expect.equal (Logic.timeOffDuration reqWeekend) 0.0 "should be 0.0"
     }
   ]
 

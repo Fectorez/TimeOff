@@ -97,7 +97,7 @@ module HttpHandlers =
             }
     
     // Get current Balance
-    let getCurrentBalance (userRequests: Map<Guid, RequestState>) (requestsEvents: seq<RequestEvent>)=
+    let getCurrentBalance (userRequests: Map<Guid, RequestState>)=
         let getRequestTimeOffFromResquestState (requests: list<TimeOffRequest>) (request: RequestState) =
             match request with
             | PendingValidation  timeOffRequest -> timeOffRequest::requests
@@ -117,6 +117,22 @@ module HttpHandlers =
                 let takenToDate = Logic.takenToDate requests today
                 let planned = Logic.plannedTimeOff requests today
                 let currentBalance = allotmentAccruedToDate + carriedOverFromLastYear - takenToDate - planned
+                
+                let jsonResponse = JObject [
+                    JProperty("allotmentAccruedToDate", allotmentAccruedToDate)
+                    JProperty("carriedOverFrom", carriedOverFromLastYear)
+                    JProperty("takenToDate", takenToDate)
+                    JProperty("planned", planned)
+                    JProperty("currentBalance", currentBalance)
+                ]
+                
+                return! Successful.OK jsonResponse next ctx
+            } 
+        
+    let getHistory (requestsEvents: seq<RequestEvent>) =
+        fun (next: HttpFunc) (ctx: HttpContext) ->
+            task {
+                let today = DateTime.Today
                 let history =
                     Logic.getHistory requestsEvents today
                     |> List.map (fun (date, from, to_, nb, msg) -> JObject [
@@ -126,20 +142,9 @@ module HttpHandlers =
                         JProperty("days", nb)
                         JProperty("event", msg)
                     ])
-                
-                let jsonResponse = JObject [
-                    JProperty("allotmentAccruedToDate", allotmentAccruedToDate)
-                    JProperty("carriedOverFrom", carriedOverFromLastYear)
-                    JProperty("takenToDate", takenToDate)
-                    JProperty("planned", planned)
-                    JProperty("currentBalance", currentBalance)
-                    JProperty("history", history)
-                ]
-                
-                return! Successful.OK jsonResponse next ctx
-            } 
+                return! Successful.OK history next ctx
+            }
         
-    
     
     
 // ---------------------------------
@@ -191,7 +196,8 @@ let webApp (eventStore: IStore<UserId, RequestEvent>) =
                             POST >=> route "/cancelRequest" >=> HttpHandlers.cancelRequest (handleCommand identity.User)
                             POST >=> route "/rejectRequest" >=> HttpHandlers.rejectRequest (handleCommand identity.User)
                             POST >=> route "/rejectCancellationClaim" >=> HttpHandlers.rejectCancellationClaim (handleCommand identity.User)
-                            GET >=> route "/currentBalance" >=> HttpHandlers.getCurrentBalance (getUserRequests identity.User) (getRequestsEvents identity.User)
+                            GET >=> route "/currentBalance" >=> HttpHandlers.getCurrentBalance (getUserRequests identity.User)
+                            GET >=> route "/history" >=> HttpHandlers.getHistory (getRequestsEvents identity.User)
                         ]
                     ))
             ])
@@ -238,7 +244,7 @@ let main _ =
     let contentRoot = Directory.GetCurrentDirectory()
 
     //let eventStore = InMemoryStore.Create<UserId, RequestEvent>()
-    let storagePath = System.IO.Path.Combine(contentRoot, "../../../.storage", "userRequests")
+    let storagePath = System.IO.Path.Combine(contentRoot, "    e", "userRequests")
     let eventStore = FileSystemStore.Create<UserId, RequestEvent>(storagePath, sprintf "%s")
 
     let webRoot = Path.Combine(contentRoot, "WebRoot")
